@@ -1,0 +1,265 @@
+# Groundwater flow – Solving PDEs using ODE solvers
+### Contents
+
+- Groundwater flow in a confined aquifer  
+- Spatial discretisation using finite differences  
+- Development of the solution code  
+- Plotting the results and comparing to an analytical solution  
+- Stiff and non-stiff problems  
+
+## Groundwater flow in a confined aquifer
+
+A confined aquifer is bounded to the West by a lake and to the East by an impermeable fault zone.  
+The aquifer is homogenous and isotropic and characterised by a transmissivity of 800 and a storativity of 0.01.  
+The edge of the lake lies parallel to the fault zone and is separated by a distance of 1600 m.  
+Initially the lake level is 50 m AOD (metres above ordinance datum).  
+After a significant episode of snow melt in the mountains above, the water level in the lake is suddenly raised to 53 m AOD.  
+
+The governing equation for one dimensional groundwater flow in a (un)confined aquifer takes the form
+
+
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from IPython.display import display, SVG 
+from IPython.core.display import SVG
+%config InlineBackend.figure_format="retina"
+plt.rcParams.update({'figure.max_open_warning': 0})
+import plotly.io as pio
+pio.renderers.default='notebook'
+
+from scipy.integrate import odeint, solve_ivp
+import numpy as np
+import seaborn as sns
+
+#pic=SVG(filename='flow per unit width, q’.svg', metadata="groundwater flow per unit width in unconfined aquifer")
+#pic
+
+#%%HTML
+#<script src="require.js"></script>
+#<script src="https://cdn.plot.ly/plotly-2.14.0.min.js" charset="utf-8"></script>
+
+$\frac {d}{dx}  K \frac {dh}{dx} = S \frac {dh}{dt}$
+
+where S [-] is the aquifer storativity (which relates to the bulk compressibility of the aquifer),  
+h [L] is the hydraulic head, t [T] is time, L [L] is distance and  
+Q is $q*h$ [m^2/s] is the volumetric flow rate per unit breadth of confined aquifer, found from
+
+where  T is the transmissivity of the aquifer (which relates to the bulk permeability of the aquifer).
+
+Discharge per unit width of aquifer = $({Piezometric_{Head}}_{Upstream}-{Piezometric_{Head}}_{DownstreamEnd})/Length*{Coefficient}_{permeability}*{Aquifer}_{Thickness}$  
+$$q=\frac{(h_o-h_1)}{L}\cdot k \cdot b$$
+
+The relevant initial and boundary conditions can be written as follows:
+
+$t_0$= 0  
+$t_x$= 0.1, 0.3, 0.5, 1, 3, 5  in days  
+T= 800  
+S= 0.01  
+L= 1600  
+$h_I$= $h_1$= 50  
+$h_0$= 53  
+$$T dy^2/dx^2 - 0 dy/dx =S u$$  and  $$u= dt$$  
+
+Volume of Confined Water for a change in head = $SAΔh$ where:  
+- Volume 	= 	volume drained from a confined aquifer for a hydraulic head change, Δh, over an area, A (L³)  
+- S 	= 	storativity (dimensionless)  
+- A 	= 	area over which the head change occurs (L²)  
+- Δh 	= 	change in head (L)  
+
+- Discharge per unit width of aquifer - (Measured in M³ per Second)  
+    - Discharge per unit width of aquifer is the rate of total discharge in the channel to the width considered.  
+- Transmissivity - (Measured in M² per Second)  
+    - Transmissivity is the rate at which groundwater flows horizontally through an aquifer
+    
+> Use the *solver 'odeint'* to develop a one-dimensional finite difference model to estimate the hydraulic head within the aquifer.  
+Show the results as a plot of hydraulic head against distance, for the following times: 0.1, 0.3, 0.5, 1, 3, 5 and 7 days.
+
+## Spatial discretisation using finite differences
+
+The above problem is an example of a partial differential equation (PDE). However, if we discretise the problem in space, the problem becomes a coupled set of ordinary differential equations (ODE) with respect to time. Here we will use odeint to solve the large set of coupled ODEs that results from the spatial discretisation. We will use finite difference for spatial discretisation. However, other methods such as finite elements and pseudospectral methods can also be used in a similar way.
+
+Let us consider a set of discrete points on the x-axis: $x_n$.
+
+The corresponding set of hydraulic heads can be written as: h(x).
+An approximation of flow per unit breadth, $q^*$, can be found from
+$q_x =-k_x dh/dx$  
+but note that these flow rates are defined at an alternative set of points: $x_b$.
+The resulting set of ODEs to be solved takes the form 
+$d/dx  K dh/dx = S \cdot dh/dt$
+Letting ∆x → 0 and ∆t → 0 in (5) leads to the one-dimensional groundwater flow equation,
+$∂h^2/∂x^2=1/k(∂h/∂t)−R(x,t)/K$  
+R=recharge, for 0<x<a, t>0, (6) where we have introduced the hydraulic diffusivity k via $k=K/S_s$.
+
+Recall that the relationship between and is $T = K b$  
+
+Furthermore it can be shown that 
+$h_2=53 m$  
+$c_1= \frac {(h_2^2-h_1^2)}{L}+(N \cdot L/K)$  
+$c_2= h_1^2$  
+$h^2(x)=+h_1^2- (h_2^2-h_1^2)\frac {x}{L}+ \frac {Nx}{K} (L-x)$
+
+## Development of the solution code
+
+Create a new script-file:
+
+### function onedimex()
+1. Solves the one-dimensional confined aquifer flow equation using the python ODE solver 'odeint', when using the function argument 'odeint'.  
+This older solver has some perks:  
+- Solves a system of ordinary differential equations using ``lsoda`` from the FORTRAN library odepack.
+- Solves the initial value problem for both stiff and non-stiff systems of first order ode's.  
+2. otherwise this function solves the one-dimensional confined aquifer flow equation using the python ODE solver 'solve_ivp' . 
+
+from dataclasses import dataclass, asdict
+
+@dataclass
+class Aquiferflow:
+    T: float = 800.0 
+    S: float = 0.01 
+    L: float = 1600.0
+    hI: float= 50.0
+    h0: float= 53.0
+    t0: float= 0.01
+    tf: float= 3.3
+    
+    @classmethod
+    
+T: float = 800.0 
+S: float = 0.01 
+L: float = 1600.0
+hI: float= 50.0
+h0: float= 53.0
+t0: float= 0.01
+tf: float= 3.3
+
+def onedimex( solver):
+    """ Solves the one-dimensional confined aquifer flow equation using a python ODE solver when using the function arg. 'odeint'
+    :param int  T: Transmissivity (m^2/day)
+    :param float S: Storativity (-)
+    :param int  L: Length of the aquifer (m)
+    :param int  hI: Initial hydraulic head (m)
+    :param float  h0: Boundary head (m)
+    :param int  x: location of points being solved for (m)
+    :param int xB: location of finite difference block boundaries (m)
+    :param float ta: time (days)
+    :return float hFD: hydr. heads by finite differences
+    """
+    # Define model parameters    #  T,S, L, hI, h0,
+    global  x, xB, t, hFD, ta, hI_vec
+    #Define spatial grid
+    N=20
+    xB= np.linspace(0.0 ,L, N+1)
+    #xB= np.logspace(-3,0,N+1)*L  ;  #xB
+    x=(xB[0:N]+ xB[1:N+1])/2
+
+    # Define the times of interest
+    #t= np.array( [ 1.0, 100.0,3000.0], dtype='float32') 
+    ta= np.linspace(0.1, 10.0, num=20)
+    #  Define initial condition vector for the ode solver
+    hI_vec= np.zeros( np.size(x))+ hI
+
+    # Apply ode to obtain the finite difference solution     
+    #print ( hI_vec, ta, hI_vec.dtype, ta.dtype, )
+    #[t,hFD]= ode45(@MYodefun, t, hI_vec,options, x,xB,S,T,h0)
+    if solver=="odeint":
+        sol= odeint(myodefun, hI_vec, ta, args=(x,xB,S,T,h0), mxstep=200,)   #full_output=1,  Dfun=Dfun, mxstep=5000  
+        #print( sol)
+        hFD =sol[:, 1] 
+        hFD = hFD.astype('float')
+        t= sol[:, 0]
+        t = t.astype('float')
+    else: 
+        solver_ivp()
+
+    print("hFD:",hFD,"t:", t)
+
+    return t, hFD
+    
+Aq= Aquiferflow
+#print(Aq.__dict__) # asdict
+
+plt.plot(ta, t, 'b', label='ta t') # sol[:, 0]   sol[:, 1]
+plt.plot(ta, hFD , 'g', label='hFD ')
+plt.legend(loc='best')
+plt.xlabel('t')
+plt.grid()
+plt.show()
+
+ta= np.linspace(0.10, 10.0, num=20)
+ta
+
+So far all we have done is written some comments explaining what some of the subsequent variables are and defined the model parameter values.  
+The next step is to determine the locations on the x-axis that we are going to solve for.  
+In the above variable list we have x and xB. It is planned that x and xB will be vectors containing and , respectively.  
+Another point to note is that $x_B(1)=0$ and $x_B{(N+1)}=L$.  
+Add the following code to provide a discretisation for 20 equally spaced solution points
+
+#Define spatial grid
+N=20
+xB= np.linspace(0.0,160,N+1);
+#xB= np.logspace(-3,0,N+1)*L
+xB
+
+#for
+x=(xB[0:N]+ xB[1:N+1])/2 ; x
+
+# Define the times of interest
+t= np.array( [0.1, 1.0,4.0, 10.0, 30.0])      # 0.0, 
+#  Define initial condition vector for the ode solver
+hI_vec=  hI + np.array( np.zeros( np.size(x)) , dtype="float64") 
+
+### solve_ivp
+This is the solver which should be used for new code, according to scipy. We need to use solver/method 'LSODA', instead of the default 'RK45' for handling possible stiffness. 
+
+def solver_ivp():
+    """Apply LSODA to obtain the finite difference solution: Adams/BDF method with automatic stiffness detection and switching 
+    :return float hFD: y Values of the solution at t.
+    :return bunch sol_ivp: Bunch object with fields: y Values of the solution at t, t Time points, sol Found solution as OdeSolution instance; None if dense_output=False 
+    """
+    global t, hFD, sol_ivp
+    #print ("hI_vec",hI_vec, hI_vec.shape,"t", t, t.shape,)
+    # new code: scipy.integrate.solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, 
+    solSo = solve_ivp(myodefun, [t0, tf], hI_vec, args=(x,xB,S,T,h0), method='LSODA',dense_output=True,) #t_eval=ta, vectorized=True, method='LSODA',
+    # notes: solSo is a bunch, t_eval needs equal ranges, 
+
+    hFD =solSo["y"]
+    #hFD = hFD.astype('float')
+    t= solSo["t"]
+    #t = t.astype('float')
+    if hasattr(solSo,'sol') is True:
+        sol_ivp = solSo["sol"]
+    #print( hFD, t)
+    return hFD, t
+    
+solver_ivp()
+
+#### stand alone code for solver_ivp()
+so the new solver can use the finite diff. method.
+
+ta= np.linspace(0.10, 3.30, 20)
+solSo = solve_ivp(myodefun, [t0, tf], hI_vec,args=(x,xB,S,T,h0),t_eval=ta, method='LSODA',) #dense_output=True,vectorized=True, method='LSODA',[0][0]
+# solSo is a bunch 
+
+hFD =solSo["y"]
+#hFD = hFD.astype('float')
+t= solSo["t"]
+if hasattr(solSo,'sol') is True:
+    sol_ivp = solSo["sol"]
+#print( hFD, t)
+
+ta= np.linspace(0.10, 3.30, 20)
+solSo = solve_ivp(AnalyticalSol_6, [t0, tf], hI_vec,args=(xB, S,T,h0),t_eval=ta, method='LSODA',) #dense_output=True,vectorized=True, method='LSODA',[0][0]
+# solSo is a bunch 
+
+hFD =solSo["y"]
+#hFD = hFD.astype('float')
+t= solSo["t"]
+if hasattr(solSo,'sol') is True:
+    sol_ivp = solSo["sol"]
+#print( hFD, t)
+
+solSo
+
+fig,ax= plt.subplots(figsize=(15,6) ) 
+plt.plot( solSo.y, ); 
+
