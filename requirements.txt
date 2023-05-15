@@ -1,0 +1,15 @@
+# import matplotlib.pyplot as plt
+matplotlib== 3.3  # 3.5
+# from mpl_toolkits.mplot3d import Axes3D
+# mpl_toolkits: 
+# from IPython.display import display, SVG 
+# from IPython.core.display import SVG
+IPython >= 8.0  # 8.2
+# %config InlineBackend.figure_format="retina"
+# plt.rcParams.update({'figure.max_open_warning': 0})
+plotly >= 5.0  # .io 5.6
+# pio.renderers.default='notebook'
+# from scipy.integrate import odeint, solve_ivp
+seaborn== 0.11  # 0.12
+scipy>= 1.9.1 
+numpy== 1.22.3
